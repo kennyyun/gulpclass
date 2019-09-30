@@ -1,13 +1,26 @@
-<!DOCTYPE html>
-html(lang="en")
-    head
-        meta(charset="UTF-8")
-        meta(name="viewport", content="width=device-width, initial-scale=1.0")
-        meta(http-equiv="X-UA-Compatible", content="ie=edge")
-        link(rel="stylesheet", href="css/all.css")
-        script(src="js/all.js")
-        title GulpClass
-    body
-        p
-        br 
-        | Lorem ipsum dolor sit amet consectetur, adipisicing elit. Tempora atque debitis alias magni officiis vel laboriosam, recusandae velit quisquam eaque impedit distinctio esse, nihil quibusdam maxime animi porro corrupti blanditiis.
+extend layouts/layout.jade
+
+block navbar
+	include partials/navbar.jade
+
+block content
+	h1
+	hr
+	hr
+
+	h1
+		span Content
+		| Another Content
+	ul
+		li
+			a(href="#") link
+		li
+			a(href="#") link
+		li
+			a(href="#") link
+	h2: a(href="#"): span 連結
+	hr
+	.container
+		form(action="")
+			label(for="email") 請輸入email
+			input#email(type="text")

@@ -14,6 +14,7 @@ var browserSync = require('browser-sync').create(); //建立一個虛擬伺服�
 var minimist = require('minimist') // 依據'--env 環境變數'，所傳入的參數'develop'=不壓縮;'production'=最大化壓縮，來決定輸出的檔案為開發版或壓縮版程式。
 // var clean = require('gulp-clean'); //清空指定資料夾及檔案
 // var imagemin = require('gulp-imagemin'); //圖片檔壓縮功能之宣告
+var data = require('gulp-data');
 
 var envOptions = {   //宣告一個環境變數，初始值為'env'字串
     string: 'env',
@@ -23,7 +24,7 @@ var options = minimist(process.argv.slice(2), envOptions)
 console.log(options)
 
 gulp.task('clean', function () {  ////清空指定資料夾及檔案
-    return gulp.src(['./.tmp', './public'], {read: false})
+    return gulp.src(['./.tmp', './public'], {read: false, allowEmpty:true}) //allowEmpty，允許當指定資料夾為空資料夾時，略過不處理。
         .pipe($.clean());
 });
 
@@ -32,23 +33,30 @@ gulp.task('clean', function () {  ////清空指定資料夾及檔案
 //         .pipe(gulp.dest('./public/')) //gulp.dest('輸出目標資料夾')
 // });
 
-gulp.task('jade', done => {  //從https://www.npmjs.com/package/gulp-jade復製，並新增done回傳函數，避免程式回傳Did you forget to signal async completion?錯誤。
+gulp.task('jade', function() {  //從https://www.npmjs.com/package/gulp-jade復製，並新增done回傳函數，避免程式回傳Did you forget to signal async completion?錯誤。
     // var YOUR_LOCALS = {};
 
-    gulp.src('./source/**/*.jade')  // 與('./source/*.jade')比，加入/**會針對所有子資料夾做編譯
+    return gulp.src('./source/**/*.jade')  // 與('./source/*.jade')比，加入/**會針對所有子資料夾做編譯
         .pipe($.plumber()) //程式編輯階段遇錯不會停止，繼續執行
+        // .pipe($.data(function() {  //使用gulp-data撈取外部json資料
+        //     var khdata = require('./source/data/data.json');
+        //     var menu = require('./source/data/menu.json');
+        //     var source = {
+        //         'khdata': khdata,
+        //         'menu': menu
+        //     };
+        //     return source;
+        // }))
         .pipe($.jade({  //使用"$.jade"是因為載入gulp-load-plugins套件後，使用gulp為開頭的plugin的套件，必須增加"$."方可調用。
-            // locals: YOUR_LOCALS
             pretty: true //編譯完html檔案，不要壓縮
         }))
         .pipe(gulp.dest('./public/'))
         .pipe(browserSync.stream()); //使用browserSync伺服器預覽檔案，並自動重新整理。
-        done(); //傳入一個done的函數，结束task
-        
+        // done(); //傳入一個done的函數，结束task    
 });
 
 gulp.task('sass', function () {
-    return gulp.src('./source/scss/**/*.scss')
+    return gulp.src('./source/stylesheets/**/*.scss')
         .pipe($.plumber()) //程式編輯階段遇錯不會停止，繼續執行
         .pipe($.sourcemaps.init()) //使用sourcemaps功能，顯示檔案合併前指令原始位置。
         .pipe($.sass().on('error', $.sass.logError))
@@ -60,7 +68,7 @@ gulp.task('sass', function () {
         .pipe(browserSync.stream()); //使用browserSync伺服器預覽檔案，並自動重新整理。
 });
 
-gulp.task('minImage', () => //進行圖片檔最佳化壓縮
+gulp.task('imageMin', () => //進行圖片檔最佳化壓縮
     gulp.src('./source/images/*.{png,jpg,gif,ico}')
         .pipe($.if(options.env === 'production', $.imagemin(
             [
@@ -117,16 +125,17 @@ gulp.task('vendorJs', function(){ //將外部載入的JS檔案，全部匯入專
 })
 
 // Static server
-gulp.task('browser-sync', function() {  //建立一個虛擬伺服器來預覽檔案。
-    browserSync.init({
-        server: {
-            baseDir: "./public/"
-        }
-    });
-    gulp.watch('./source/scss/**/*.scss', gulp.series('sass')); // gulp 4.x 版本必須使用 gulp.series() 呼叫sass任務名稱。
-    gulp.watch('./source/**/*.jade', gulp.series('jade'));
-    gulp.watch('./source/js/**/*.js', gulp.series('babel'));
-});
+// gulp.task('browser-sync', function() {  //建立一個虛擬伺服器來預覽檔案。
+//     browserSync.init({
+//         server: {
+//             baseDir: "./public/"
+//         },
+//         reloadDebounce: 2000
+//     });
+//     gulp.watch('./source/scss/**/*.scss', gulp.series('sass')); // gulp 4.x 版本必須使用 gulp.series() 呼叫sass任務名稱。
+//     gulp.watch('./source/**/*.jade', gulp.series('jade'));
+//     gulp.watch('./source/js/**/*.js', gulp.series('babel'));
+// });
 
 
 
@@ -138,9 +147,28 @@ gulp.task('watch', function () { //監控資料檔案異動存檔後，自動更
 
 gulp.task('deploy', function() {
     return gulp.src('./public/**/*')
-      .pipe($.ghPages());
-  });
+    .pipe($.ghPages());
+});
 
-gulp.task('build', gulp.series('clean',gulp.parallel('jade', 'sass', 'babel', gulp.series('bower', 'vendorJs','minImage'))));
+gulp.task('build', gulp.series('clean',gulp.parallel('jade', 'sass', 'babel', gulp.series('bower', 'vendorJs','imageMin'))));
 
-gulp.task('default',gulp.series(['jade','sass','babel','bower','vendorJs','minImage','watch'])); //將gulp任務打包，不用再分別執行gulp jade;gulp sass;gulp watch，執行gulp即可。
+gulp.task('default',
+    gulp.series('clean','bower', 'vendorJs',
+    gulp.parallel('jade', 'sass', 'babel','imageMin'),
+    function(done) {
+        browserSync.init({
+            server: {
+                baseDir: "./public/"
+            },
+            reloadDebounce: 2000
+        })
+
+        gulp.watch('./source/scss/**/*.scss', gulp.series('sass')); // gulp 4.x 版本必須使用 gulp.series() 呼叫sass任務名稱。
+        gulp.watch('./source/**/*.jade', gulp.series('jade'));
+        gulp.watch('./source/js/**/*.js', gulp.series('babel'));
+    done();
+    }
+    )
+);
+
+// gulp.task('default',gulp.series(['jade','sass','babel','bower','vendorJs','imageMin','watch'])); //將gulp任務打包，不用再分別執行gulp jade;gulp sass;gulp watch，執行gulp即可。
